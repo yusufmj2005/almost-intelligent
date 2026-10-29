@@ -227,27 +227,27 @@
   function answerFor(input) {
     const text = input.toLowerCase();
     if (/(price|pricing|cost|budget|how much|rate)/.test(text)) {
-      return "Project pricing depends on the scope, features, and timeline. A focused landing page is different from a custom web app. Share your goals through the project enquiry form and the team can prepare a tailored estimate.";
+      return "Project pricing depends on scope, architecture, and timeline. A focused tool or automation is very different from a full-stack platform. Drop your requirements in the project enquiry form and we'll reply with a straightforward estimate.";
     }
-    if (/(service|services|what do you do|offer|website|web app|app development)/.test(text)) {
-      return "NOVA focuses on three areas:\n\n• Business websites and landing pages\n• Custom web apps, dashboards, and integrations\n• Practical AI experiences such as document assistants and chat workflows\n\nWhich one sounds closest to your project?";
+    if (/(service|services|what do you do|offer|website|web app|app development|stack)/.test(text)) {
+      return "Almost Intelligent is a two-person dev team working across:\n\n• Websites & full-stack web applications\n• Python software, APIs & workflow automation\n• Practical AI/ML, AI chatbots & LLM integrations\n• Data analytics, dashboards, desktop & mobile apps\n\nWhich area are you exploring for your project?";
     }
     if (/(time|timeline|long|deadline|how soon)/.test(text)) {
-      return "Timelines depend on scope. A focused landing page may take days, while a custom application needs more discovery, development, and testing. We agree on milestones before work begins.";
+      return "Timelines depend on scope and complexity. We build lean, iterate quickly, and agree on clear milestones upfront before writing code. We make intelligence work. Eventually.";
     }
     if (/(start|contact|book|meeting|hire|talk|project|quote|estimate)/.test(text)) {
       return "Great place to start! Use the project enquiry form on this page to share your name, email, service, and a few details. Your enquiry will be sent directly to the team.";
     }
-    if (/(ai|chatbot|artificial intelligence|automation)/.test(text)) {
-      return "We can prototype practical AI experiences such as FAQ assistants, document search, and workflow automation. This particular chat is a scripted demo with no connected AI model, so it works without API costs.";
+    if (/(ai|chatbot|artificial intelligence|automation|llm|ml)/.test(text)) {
+      return "We build practical AI integrations — chatbots, LLM workflows, document tools, and ML prototypes. We focus on tools that solve real problems rather than AI for the sake of AI. This chat widget itself is a lightweight deterministic assistant running client-side.";
     }
     if (/(hello|hi|hey|good morning|good afternoon)/.test(text)) {
-      return "Hey! 👋 Happy to help. Ask about services, project pricing, timelines, or how to get started.";
+      return "Hey! 👋 Welcome to Almost Intelligent. We Make Intelligence Work. Eventually. Ask about our services, project pricing, timelines, or how to get started.";
     }
-    if (/(human|person|team|email|phone|address)/.test(text)) {
-      return "This is a portfolio studio. Use the enquiry form to get in touch, or reach out through the contact details configured by the site owner.";
+    if (/(human|person|team|email|phone|address|who)/.test(text)) {
+      return "Almost Intelligent is a two-person software development team. Use the enquiry form to get in touch directly, and we'll reply to your inbox.";
     }
-    return "I can help with questions about services, project pricing, timelines, AI integrations, or getting started. Try one of the quick prompts below, or tell me a little more about your project.";
+    return "I can help with questions about web apps, Python software, AI/LLM integrations, dashboards, automation, or getting started. Try one of the quick prompts below, or tell me a little more about your project.";
   }
 
   function sendMessage(text) {

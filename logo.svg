@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <rect width="512" height="512" rx="116" fill="#ffffff"/>
+  <!-- Almost Intelligent Systems - Interlocking Neural Loop Symbol -->
+  <g fill="none" stroke="#090a12" stroke-width="40" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Primary strand: sweeps from upper-left around bottom and right, intertwining inward -->
+    <path d="M 168 200 C 148 260 176 326 232 352 C 290 378 358 352 380 294 C 398 246 376 196 332 178 C 292 162 250 184 240 220 C 230 256 254 290 288 296"/>
+    <!-- Interlocking complementary strand (180° rotational symmetry) -->
+    <path d="M 344 312 C 364 252 336 186 280 160 C 222 134 154 160 132 218 C 114 266 136 316 180 334 C 220 350 262 328 272 292 C 282 256 258 222 224 216"/>
+  </g>
+</svg>
