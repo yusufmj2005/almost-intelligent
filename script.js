@@ -1,6 +1,5 @@
 (() => {
   "use strict";
-  const STORAGE_KEY = "nova-demo-leads-v1";
   const $ = (selector, root = document) => root.querySelector(selector);
 
   // Mobile navigation
@@ -18,67 +17,132 @@
 
   $("#year").textContent = new Date().getFullYear();
 
-  // Demo lead capture: browser-local only. No data is sent to a server.
+  // ─── Enquiry form → Google Apps Script backend ────────────────────────
+  const BACKEND_URL = "https://script.google.com/macros/s/AKfycbzHwd9TRqQAVbqOUzUWAYhg_-iP7zx-9gAHr2DEHsYf0F6_Xo3tUGlL9hWXZI2vqrzt/exec";
+  const SUBMIT_TIMEOUT_MS = 20000;
+
   const leadForm = $("#leadForm");
-  const feedback = $("#formFeedback");
-  leadForm.addEventListener("submit", event => {
-    event.preventDefault();
-    if (!leadForm.reportValidity()) return;
-    const formData = new FormData(leadForm);
-    const lead = {
-      id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : `lead-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      name: String(formData.get("name") || "").trim(),
-      email: String(formData.get("email") || "").trim(),
-      service: String(formData.get("service") || "").trim(),
-      budget: String(formData.get("budget") || "").trim(),
-      message: String(formData.get("message") || "").trim()
-    };
-    try {
-      const current = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-      if (!Array.isArray(current)) throw new Error("Invalid stored data");
-      current.push(lead);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
-      feedback.textContent = "Thanks! Demo enquiry saved in this browser. No email was sent.";
+  const feedback  = $("#formFeedback");
+  const submitBtn = $("#submitBtn");
+  const formTarget = $("#formTarget");
+
+  // Generate a token matching ^[a-f0-9-]{20,80}$
+  function generateToken() {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID(); // e.g. "550e8400-e29b-41d4-a716-446655440000"
+    }
+    // Fallback: build a UUID-v4-shaped hex string
+    const hex = () => Math.floor(Math.random() * 0x10000).toString(16).padStart(4, "0");
+    return [hex() + hex(), hex(), hex(), hex(), hex() + hex() + hex()].join("-");
+  }
+
+  let pendingToken = null;
+  let timeoutId = null;
+
+  function setSubmitting(busy) {
+    submitBtn.disabled = busy;
+    submitBtn.innerHTML = busy
+      ? '<span class="spinner" aria-hidden="true"></span> Sending\u2026'
+      : 'Send enquiry <span aria-hidden="true">\u2197</span>';
+  }
+
+  function showFeedback(text, isError) {
+    feedback.textContent = text;
+    feedback.style.color = isError ? "#ff9e9e" : "#a8f0cf";
+  }
+
+  function clearPending() {
+    pendingToken = null;
+    if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
+    setSubmitting(false);
+  }
+
+  // Listen for postMessage responses from the hidden iframe.
+  //
+  // Origin-validation tradeoff: Google Apps Script may redirect the
+  // response through different Google origins (e.g. script.googleusercontent.com)
+  // making a strict origin allow-list unreliable. Instead we validate:
+  //   1. event.source === formTarget.contentWindow  (proves the message came
+  //      from our iframe, not an unrelated frame or window)
+  //   2. event.data.type === "portfolio-enquiry-result"
+  //   3. event.data.token matches the token we generated for this submission
+  // Together these prevent any cross-origin frame from forging a success.
+  window.addEventListener("message", function onBackendMessage(event) {
+    // Only accept messages from our hidden iframe
+    if (!formTarget || event.source !== formTarget.contentWindow) return;
+
+    var data = event.data;
+    if (!data || typeof data !== "object") return;
+    if (data.type !== "portfolio-enquiry-result") return;
+    if (typeof data.token !== "string" || typeof data.ok !== "boolean" || typeof data.message !== "string") return;
+
+    // Must match the currently pending submission
+    if (data.token !== pendingToken) return;
+
+    clearPending();
+
+    if (data.ok) {
+      showFeedback(data.message || "Thanks! Your enquiry has been sent.", false);
       leadForm.reset();
-    } catch (error) {
-      feedback.textContent = "This browser could not save the demo enquiry. Check storage settings and try again.";
-      console.error("Demo lead save failed:", error);
+    } else {
+      showFeedback(data.message || "The server could not process your enquiry. Please try again.", true);
     }
   });
 
-  // Developer utility: export browser-local demo leads as CSV.
-  // Open the site with ?admin=1 to reveal the export control.
-  const params = new URLSearchParams(window.location.search);
-  if (params.get("admin") === "1") {
-    const exportButton = document.createElement("button");
-    exportButton.type = "button";
-    exportButton.className = "button";
-    exportButton.textContent = "Export demo leads (CSV)";
-    exportButton.style.cssText = "position:fixed;left:12px;bottom:12px;z-index:50;background:#f0edff;color:#171125;font-size:11px";
-    exportButton.addEventListener("click", () => {
-      let leads;
-      try { leads = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }
-      catch { leads = []; }
-      if (!Array.isArray(leads) || leads.length === 0) {
-        alert("No demo leads saved in this browser yet.");
-        return;
+  leadForm.addEventListener("submit", function onSubmit(event) {
+    event.preventDefault();
+
+    // Block duplicate submissions while one is in-flight
+    if (pendingToken) return;
+
+    if (!leadForm.reportValidity()) return;
+
+    // Generate token and inject it
+    var token = generateToken();
+    pendingToken = token;
+
+    // Build a real <form> POST to the hidden iframe.
+    // We create a transient form so we don't modify the visible form's action/target.
+    var postForm = document.createElement("form");
+    postForm.method = "POST";
+    postForm.action = BACKEND_URL;
+    postForm.target = "formTarget";
+    postForm.style.display = "none";
+
+    var fields = {
+      name:    String(leadForm.elements.name.value    || "").trim(),
+      email:   String(leadForm.elements.email.value   || "").trim(),
+      service: String(leadForm.elements.service.value || "").trim(),
+      budget:  String(leadForm.elements.budget.value  || "").trim(),
+      message: String(leadForm.elements.message.value || "").trim(),
+      token:   token,
+      website: ""  // honeypot — must stay empty
+    };
+
+    for (var key in fields) {
+      var input = document.createElement("input");
+      input.type = "hidden";
+      input.name = key;
+      input.value = fields[key];
+      postForm.appendChild(input);
+    }
+
+    setSubmitting(true);
+    feedback.textContent = "";
+    showFeedback("", false);
+
+    document.body.appendChild(postForm);
+    postForm.submit();
+    postForm.remove();
+
+    // Timeout: if we don't hear back, let the visitor retry
+    timeoutId = setTimeout(function () {
+      if (pendingToken === token) {
+        clearPending();
+        showFeedback("The request timed out. Please check your connection and try again.", true);
       }
-      const columns = ["createdAt", "name", "email", "service", "budget", "message"];
-      const quote = value => `"${String(value ?? "").replace(/"/g, '""')}"`;
-      const csv = [columns.join(","), ...leads.map(lead => columns.map(key => quote(lead[key])).join(","))].join("\r\n");
-      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `nova-demo-leads-${new Date().toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    });
-    document.body.appendChild(exportButton);
-  }
+    }, SUBMIT_TIMEOUT_MS);
+  });
 
   // Scripted chatbot: deterministic responses, no API key and no external service.
   const launcher = $("#chatLauncher");
@@ -127,7 +191,7 @@
       return "Timelines depend on scope. A focused landing page may take days, while a custom application needs more discovery, development, and testing. We agree on milestones before work begins.";
     }
     if (/(start|contact|book|meeting|hire|talk|project|quote|estimate)/.test(text)) {
-      return "Great place to start! Use the project enquiry form on this page to share your name, email, service, and a few details. This portfolio demo saves the enquiry only in your browser; it doesn't send it to a real team.";
+      return "Great place to start! Use the project enquiry form on this page to share your name, email, service, and a few details. Your enquiry will be sent directly to the team.";
     }
     if (/(ai|chatbot|artificial intelligence|automation)/.test(text)) {
       return "We can prototype practical AI experiences such as FAQ assistants, document search, and workflow automation. This particular chat is a scripted demo with no connected AI model, so it works without API costs.";
@@ -136,7 +200,7 @@
       return "Hey! 👋 Happy to help. Ask about services, project pricing, timelines, or how to get started.";
     }
     if (/(human|person|team|email|phone|address)/.test(text)) {
-      return "This is a fictional portfolio studio, so no real team contact details are configured. Use the enquiry form to test the lead-capture flow, or customize the site with your real contact details before publishing.";
+      return "This is a portfolio studio. Use the enquiry form to get in touch, or reach out through the contact details configured by the site owner.";
     }
     return "I can help with questions about services, project pricing, timelines, AI integrations, or getting started. Try one of the quick prompts below, or tell me a little more about your project.";
   }

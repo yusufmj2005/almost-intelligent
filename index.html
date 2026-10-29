@@ -126,8 +126,9 @@
           <label for="service">What do you need? <span>*</span></label><select id="service" name="service" required><option value="">Choose a service</option><option>Business website</option><option>Landing page</option><option>Web application</option><option>AI integration</option><option>Something else</option></select>
           <label for="budget">Estimated budget</label><select id="budget" name="budget"><option value="">Select a range (optional)</option><option>Under $500</option><option>$500–$1,500</option><option>$1,500–$5,000</option><option>$5,000+</option><option>Not sure yet</option></select>
           <label for="message">A little about your project <span>*</span></label><textarea id="message" name="message" rows="3" placeholder="The problem I'm trying to solve is..." required minlength="10"></textarea>
-          <button class="button button-primary submit-button" type="submit">Save demo enquiry <span aria-hidden="true">↗</span></button>
-          <p class="form-disclaimer">Portfolio demo only. Your entry is stored in this browser, not sent to an inbox.</p>
+          <div class="honeypot-wrap" aria-hidden="true" style="position:absolute;left:-9999px;height:0;overflow:hidden;tabindex:-1"><label for="website">Website</label><input id="website" name="website" type="text" autocomplete="off" tabindex="-1"></div>
+          <button class="button button-primary submit-button" id="submitBtn" type="submit">Send enquiry <span aria-hidden="true">↗</span></button>
+          <p class="form-disclaimer">Your details are used only to respond to this enquiry.</p>
           <div class="form-feedback" id="formFeedback" role="status" aria-live="polite"></div>
         </form>
       </div>
@@ -148,5 +149,6 @@
     <form class="chat-input-row" id="chatForm"><label class="sr-only" for="chatInput">Message NOVA</label><input id="chatInput" placeholder="Ask a question..." maxlength="400" autocomplete="off"><button type="submit" aria-label="Send message">↑</button></form>
     <div class="chat-footnote">Interactive scripted demo · No AI API connected</div>
   </section>
+  <iframe id="formTarget" name="formTarget" style="display:none" aria-hidden="true" tabindex="-1"></iframe>
 </body>
 </html>
