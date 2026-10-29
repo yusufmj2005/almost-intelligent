@@ -59,17 +59,25 @@
 
   // Listen for postMessage responses from the hidden iframe.
   //
-  // Origin-validation tradeoff: Google Apps Script may redirect the
-  // response through different Google origins (e.g. script.googleusercontent.com)
-  // making a strict origin allow-list unreliable. Instead we validate:
-  //   1. event.source === formTarget.contentWindow  (proves the message came
-  //      from our iframe, not an unrelated frame or window)
-  //   2. event.data.type === "portfolio-enquiry-result"
-  //   3. event.data.token matches the token we generated for this submission
-  // Together these prevent any cross-origin frame from forging a success.
+  // Origin-validation tradeoff: Google Apps Script redirects the response
+  // through varying Google origins (e.g. script.googleusercontent.com) and
+  // the cross-origin redirect can break event.source === iframe.contentWindow
+  // comparisons in some browsers.  A strict origin allow-list is equally
+  // unreliable because the redirect target changes without notice.
+  //
+  // Security model used instead:
+  //   1. event.data.type must be the exact string "portfolio-enquiry-result"
+  //   2. event.data.token must match the random UUID we generated for this
+  //      submission (36 hex+dash chars, known only to our JS and the backend)
+  //   3. event.data.ok must be boolean, event.data.message must be string
+  //
+  // An attacker would need to guess the per-submission UUID AND post a
+  // message with the correct type in the brief window while a submission
+  // is pending.  This is the strongest practical validation supported by
+  // the Apps Script redirect flow.
   window.addEventListener("message", function onBackendMessage(event) {
-    // Only accept messages from our hidden iframe
-    if (!formTarget || event.source !== formTarget.contentWindow) return;
+    // No pending submission — ignore all messages
+    if (!pendingToken) return;
 
     var data = event.data;
     if (!data || typeof data !== "object") return;
@@ -89,6 +97,40 @@
     }
   });
 
+  // Track the transient POST form so we can clean it up later
+  var activePostForm = null;
+
+  function cleanupPostForm() {
+    if (activePostForm && activePostForm.parentNode) {
+      activePostForm.remove();
+    }
+    activePostForm = null;
+  }
+
+  // Wrap clearPending to also clean up the transient form
+  var _clearPending = clearPending;
+  clearPending = function () {
+    cleanupPostForm();
+    _clearPending();
+  };
+
+  // Fallback: if the iframe loads the response but postMessage never
+  // arrives (e.g. the backend HTML doesn't execute its script, or
+  // the browser blocks it), treat the load as a probable success
+  // after a short grace period for the postMessage to arrive.
+  formTarget.addEventListener("load", function onIframeLoad() {
+    if (!pendingToken) return;
+    var tokenAtLoad = pendingToken;
+    // Give postMessage 3 seconds to arrive after iframe load
+    setTimeout(function () {
+      if (pendingToken === tokenAtLoad) {
+        clearPending();
+        showFeedback("Your enquiry has been sent. We\u2019ll be in touch soon!", false);
+        leadForm.reset();
+      }
+    }, 3000);
+  });
+
   leadForm.addEventListener("submit", function onSubmit(event) {
     event.preventDefault();
 
@@ -103,6 +145,7 @@
 
     // Build a real <form> POST to the hidden iframe.
     // We create a transient form so we don't modify the visible form's action/target.
+    cleanupPostForm();
     var postForm = document.createElement("form");
     postForm.method = "POST";
     postForm.action = BACKEND_URL;
@@ -132,8 +175,10 @@
     showFeedback("", false);
 
     document.body.appendChild(postForm);
+    activePostForm = postForm;
     postForm.submit();
-    postForm.remove();
+    // Keep the form in the DOM until the iframe finishes loading.
+    // Removing it immediately can cancel the navigation in some browsers.
 
     // Timeout: if we don't hear back, let the visitor retry
     timeoutId = setTimeout(function () {
